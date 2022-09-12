@@ -1,11 +1,10 @@
 use clap::Parser;
 
-use crate::transaction_engine::ClientAccount;
-
 mod common_types;
 mod transaction_engine;
 mod account;
 mod parser;
+mod output;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about=None)]
@@ -25,19 +24,9 @@ fn main() {
             transaction_engine.process_transaction(transaction);
         }
 
-        println!("client,available,held,total,locked");
-        for account in transaction_engine.get_accounts() {
-            output_account(&account);
-        }
+        output::output_accounts(transaction_engine.get_accounts());
     } else {
         return;
     }
 }
 
-fn output_account(account: &ClientAccount) {
-    println!("{},{},{},{},{}", account.client_id,
-             account.account.available() as f64 / 10000.0,
-             account.account.held() as f64 / 10000.0,
-             account.account.total() as f64 / 10000.0,
-             account.account.is_locked());
-}
