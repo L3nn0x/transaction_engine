@@ -2,10 +2,15 @@ use std::collections::{HashMap, HashSet};
 use crate::common_types::*;
 use crate::account::Account;
 
+struct InnerTransaction {
+    client_id: ClientID,
+    is_disputed: bool,
+    amount: Amount
+}
 
 pub struct TransactionEngine {
     accounts: HashMap<ClientID, Account>,
-    transactions: HashSet<Transaction>
+    transactions: HashMap<TransactionID, InnerTransaction>
 }
 
 pub struct ClientAccount<'a> {
@@ -17,31 +22,43 @@ impl TransactionEngine {
     pub fn new() -> Self {
         Self {
             accounts: HashMap::new(),
-            transactions: HashSet::new()
+            transactions: HashMap::new()
         }
     }
 
     pub fn process_transaction(&mut self, transaction: Transaction) {
         use Transaction::*;
-        let should_save_tx = match transaction {
-            Deposit(_, cx, amount) => self.process_deposit(cx, amount),
-            Withdrawal(_, cx, amount) => self.process_withdrawal(cx, amount),
+        let tx_to_save = match transaction {
+            Deposit(tx, cx, amount) => {
+                if self.process_deposit(cx, amount) {
+                    Some((tx, InnerTransaction{
+                        client_id: cx,
+                        is_disputed: false,
+                        amount
+                    }))
+                } else {
+                    None
+                }
+            },
+            Withdrawal(_, cx, amount) => {
+                self.process_withdrawal(cx, amount);
+                None
+            },
             Dispute(tx, cx) => {
                 self.process_dispute(tx, cx);
-                false
+                None
             },
             Resolve(tx, cx) => {
                 self.process_resolve(tx, cx);
-                false
+                None
             },
             Chargeback(tx, cx) => {
                 self.process_chargeback(tx, cx);
-                false
-            },
-            Any(_) => panic!("Transaction::Any is not a valid transaction") // this is a logic error, should be logged / pushed back up
+                None
+            }
         };
-        if should_save_tx {
-            self.transactions.insert(transaction);
+        if let Some((tx, transaction)) = tx_to_save {
+            self.transactions.insert(tx, transaction);
         }
     }
 
@@ -67,14 +84,14 @@ impl TransactionEngine {
     }
 
     fn process_dispute(&mut self, tx: TransactionID, cx: ClientID) {
-        if let Some(transaction) = self.transactions.get(&Transaction::Any(tx)) {
-            if transaction.get_client_id() != cx {
-                // wrong client ID
+        if let Some(transaction) = self.transactions.get_mut(&tx) {
+            if transaction.client_id != cx || transaction.is_disputed {
+                // wrong client ID or that transaction is already disputed
+                return;
             }
             if let Some(account) = self.accounts.get_mut(&cx) {
-                if let Some(amount) = transaction.get_amount() {
-                    account.dispute(amount);
-                }
+                account.dispute(transaction.amount);
+                transaction.is_disputed = true;
             }
         }
     }
@@ -155,6 +172,19 @@ mod tests {
     }
 
     #[test]
+    fn test_dispute_twice() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Dispute(2, 1));
+        te.process_transaction(Transaction::Dispute(2, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 30);
+        assert_eq!(accounts[0].account.available(), 12);
+    }
+
+    #[test]
     fn test_dispute_wrong_tx() {
         let mut te = TransactionEngine::new();
         te.process_transaction(Transaction::Deposit(1, 1, 12));
@@ -172,6 +202,67 @@ mod tests {
         te.process_transaction(Transaction::Deposit(1, 1, 12));
         te.process_transaction(Transaction::Deposit(2, 1, 30));
         te.process_transaction(Transaction::Dispute(1, 2));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_normal() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 42));
+        te.process_transaction(Transaction::Dispute(1, 1));
+        te.process_transaction(Transaction::Resolve(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_partial() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Dispute(1, 1));
+        te.process_transaction(Transaction::Resolve(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_wrong_tx() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Resolve(3, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_wrong_cx() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Resolve(1, 2));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_tx_not_under_dispute() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Resolve(1, 1));
         let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].account.held(), 0);
