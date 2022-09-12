@@ -29,6 +29,12 @@ impl Account {
         }
     }
 
+    pub fn dispute(&mut self, amount: Amount) {
+        if amount <= self.available() {
+            self.amount_held += amount;
+        }
+    }
+
     pub fn client_id(&self) -> ClientID {
         self.client_id
     }
@@ -42,7 +48,7 @@ impl Account {
     }
 
     pub fn total(&self) -> Amount {
-        self.amount + self.amount_held
+        self.amount
     }
 
     pub fn is_locked(&self) -> bool {
@@ -87,7 +93,7 @@ mod tests {
     fn total() {
         let mut account = Account::new(1, 42);
         account.amount_held = 12;
-        assert_eq!(account.total(), 42 + 12);
+        assert_eq!(account.total(), 42);
     }
 
     #[test]
@@ -145,6 +151,23 @@ mod tests {
         account.amount_held = 32;
         account.withdraw(40);
         assert_eq!(account.available(), 42 - 32);
-        assert_eq!(account.total(), 42 + 32);
+        assert_eq!(account.total(), 42);
+    }
+
+    #[test]
+    fn dispute_normal() {
+        let mut account = Account::new(1, 42);
+        account.dispute(12);
+        assert_eq!(account.available(), 30);
+        assert_eq!(account.total(), 42);
+    }
+
+    #[test]
+    fn dispute_insufficient_available_funds() {
+        let mut account = Account::new(1, 42);
+        account.dispute(12);
+        account.dispute(42);
+        assert_eq!(account.available(), 30);
+        assert_eq!(account.total(), 42);
     }
 }
