@@ -15,35 +15,50 @@ impl Account {
         }
     }
 
-    pub fn deposit(&mut self, amount: Amount) {
+    pub fn deposit(&mut self, amount: Amount) -> bool {
         if !self.is_locked {
             self.amount += amount;
+            true
+        } else {
+            false
         }
     }
 
-    pub fn withdraw(&mut self, amount: Amount) {
+    pub fn withdraw(&mut self, amount: Amount) -> bool {
         if amount <= self.available() && !self.is_locked() {
             self.amount -= amount;
+            true
+        } else {
+            false
         }
     }
 
-    pub fn dispute(&mut self, amount: Amount) {
+    pub fn dispute(&mut self, amount: Amount) -> bool {
         if amount <= self.available() {
             self.amount_held += amount;
+            true
+        } else {
+            false
         }
     }
 
-    pub fn resolve(&mut self, amount: Amount) {
+    pub fn resolve(&mut self, amount: Amount) -> bool {
         if amount <= self.held() {
             self.amount_held -= amount;
+            true
+        } else {
+            false
         }
     }
 
-    pub fn chargeback(&mut self, amount: Amount) {
+    pub fn chargeback(&mut self, amount: Amount) -> bool {
         if amount <= self.held() {
             self.is_locked = true;
             self.amount_held -= amount;
             self.amount -= amount;
+            true
+        } else {
+            false
         }
     }
 
@@ -107,103 +122,115 @@ mod tests {
     #[test]
     fn deposit_normal() {
         let mut account = Account::new(42);
-        account.deposit(12);
+        let res = account.deposit(12);
         assert_eq!(account.available(), 42 + 12);
         assert_eq!(account.total(), 42 + 12);
+        assert_eq!(res, true);
     }
 
     #[test]
     fn deposit_locked() {
         let mut account = Account::new(42);
         account.is_locked = true;
-        account.deposit(12);
+        let res = account.deposit(12);
         assert_eq!(account.available(), 42);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn withdraw_normal() {
         let mut account = Account::new(42);
-        account.withdraw(12);
+        let res = account.withdraw(12);
         assert_eq!(account.available(), 42 - 12);
         assert_eq!(account.total(), 42 - 12);
+        assert_eq!(res, true);
     }
 
     #[test]
     fn withdraw_locked() {
         let mut account = Account::new(42);
         account.is_locked = true;
-        account.withdraw(12);
+        let res = account.withdraw(12);
         assert_eq!(account.available(), 42);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn withdraw_insufficient_total_funds() {
         let mut account = Account::new(42);
-        account.withdraw(80);
+        let res = account.withdraw(80);
         assert_eq!(account.available(), 42);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn withdraw_insufficient_available_funds() {
         let mut account = Account::new(42);
         account.amount_held = 32;
-        account.withdraw(40);
+        let res = account.withdraw(40);
         assert_eq!(account.available(), 42 - 32);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn dispute_normal() {
         let mut account = Account::new(42);
-        account.dispute(12);
+        let res = account.dispute(12);
         assert_eq!(account.available(), 30);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, true);
     }
 
     #[test]
     fn dispute_insufficient_available_funds() {
         let mut account = Account::new(42);
         account.dispute(12);
-        account.dispute(42);
+        let res = account.dispute(42);
         assert_eq!(account.available(), 30);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn resolve_normal() {
         let mut account = Account::new(42);
         account.dispute(12);
-        account.resolve(8);
+        let res = account.resolve(8);
         assert_eq!(account.held(), 4);
+        assert_eq!(res, true);
     }
 
     #[test]
     fn resolve_insufficient_held_funds() {
         let mut account = Account::new(42);
         account.dispute(6);
-        account.resolve(10);
+        let res = account.resolve(10);
         assert_eq!(account.held(), 6);
+        assert_eq!(res, false);
     }
 
     #[test]
     fn chargeback_normal() {
         let mut account = Account::new(42);
         account.dispute(12);
-        account.chargeback(12);
+        let res = account.chargeback(12);
         assert_eq!(account.is_locked(), true);
         assert_eq!(account.available(), 30);
         assert_eq!(account.total(), 30);
+        assert_eq!(res, true);
     }
 
     #[test]
     fn chargeback_insufficient_held_funds() {
         let mut account = Account::new(42);
-        account.chargeback(12);
+        let res = account.chargeback(12);
         assert_eq!(account.is_locked(), false);
         assert_eq!(account.available(), 42);
         assert_eq!(account.total(), 42);
+        assert_eq!(res, false);
     }
 }
