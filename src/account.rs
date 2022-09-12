@@ -23,6 +23,12 @@ impl Account {
         }
     }
 
+    pub fn withdraw(&mut self, amount: Amount) {
+        if amount <= self.available() && !self.is_locked() {
+            self.amount -= amount;
+        }
+    }
+
     pub fn client_id(&self) -> ClientID {
         self.client_id
     }
@@ -96,6 +102,7 @@ mod tests {
         let mut account = Account::new(1, 42);
         account.deposit(12);
         assert_eq!(account.available(), 42 + 12);
+        assert_eq!(account.total(), 42 + 12);
     }
 
     #[test]
@@ -104,5 +111,40 @@ mod tests {
         account.is_locked = true;
         account.deposit(12);
         assert_eq!(account.available(), 42);
+        assert_eq!(account.total(), 42);
+    }
+
+    #[test]
+    fn withdraw_normal() {
+        let mut account = Account::new(1, 42);
+        account.withdraw(12);
+        assert_eq!(account.available(), 42 - 12);
+        assert_eq!(account.total(), 42 - 12);
+    }
+
+    #[test]
+    fn withdraw_locked() {
+        let mut account = Account::new(1, 42);
+        account.is_locked = true;
+        account.withdraw(12);
+        assert_eq!(account.available(), 42);
+        assert_eq!(account.total(), 42);
+    }
+
+    #[test]
+    fn withdraw_insufficient_total_funds() {
+        let mut account = Account::new(1, 42);
+        account.withdraw(80);
+        assert_eq!(account.available(), 42);
+        assert_eq!(account.total(), 42);
+    }
+
+    #[test]
+    fn withdraw_insufficient_available_funds() {
+        let mut account = Account::new(1, 42);
+        account.amount_held = 32;
+        account.withdraw(40);
+        assert_eq!(account.available(), 42 - 32);
+        assert_eq!(account.total(), 42 + 32);
     }
 }
