@@ -1,5 +1,6 @@
 [package]
 name = "transaction_engine"
+author = "Adrien Vaillant"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +9,4 @@ edition = "2021"
 [dependencies]
 csv = "1.1.6"
 serde = {version="1.0.144", features=["derive"]}
+clap = {version="3.2.21", features=["derive"]}
