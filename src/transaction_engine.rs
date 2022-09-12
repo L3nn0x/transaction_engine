@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::common_types::*;
 use crate::account::Account;
+use log::warn;
 
 struct InnerTransaction {
     client_id: ClientID,
@@ -79,6 +80,7 @@ impl TransactionEngine {
         if let Some(account) = self.accounts.get_mut(&cx) {
             account.withdraw(amount)
         } else {
+            warn!("Withdrawal transaction type on non-existing account, skipping cx={}", cx);
             false
         }
     }
@@ -87,6 +89,7 @@ impl TransactionEngine {
         if let Some(transaction) = self.transactions.get_mut(&tx) {
             if transaction.client_id != cx || transaction.is_disputed {
                 // wrong client ID or that transaction is already disputed
+                warn!("Dispute transaction type on wrong account or wrong transaction, skipping cx={} tx={}", cx, tx);
                 return;
             }
             if let Some(account) = self.accounts.get_mut(&cx) {
@@ -100,6 +103,7 @@ impl TransactionEngine {
         if let Some(transaction) = self.transactions.get(&tx) {
             if transaction.client_id != cx || !transaction.is_disputed {
                 // wrong client ID or that transaction is not disputed
+                warn!("Resolve/Chargeback transaction type on wrong account or wrong transaction, skipping cx={} tx={}", cx, tx);
                 return;
             }
             if let Some(account) = self.accounts.get_mut(&cx) {

@@ -1,4 +1,5 @@
 use crate::common_types::Amount;
+use log::{warn, error};
 
 pub struct Account {
     amount: Amount,
@@ -20,6 +21,7 @@ impl Account {
             self.amount += amount;
             true
         } else {
+            warn!("Attempt to trigger a deposit account action on a locked account");
             false
         }
     }
@@ -29,6 +31,7 @@ impl Account {
             self.amount -= amount;
             true
         } else {
+            warn!("Attempt to trigger a withdrawal account action on a locked account");
             false
         }
     }
@@ -38,6 +41,7 @@ impl Account {
             self.amount_held += amount;
             true
         } else {
+            error!("Attempt to trigger a dispute account action without enough funds");
             false
         }
     }
@@ -47,6 +51,7 @@ impl Account {
             self.amount_held -= amount;
             true
         } else {
+            error!("Attempt to trigger a resolve account action without enough held funds");
             false
         }
     }
@@ -58,6 +63,7 @@ impl Account {
             self.amount -= amount;
             true
         } else {
+            error!("Attempt to trigger a chargeback account action without enough held funds");
             false
         }
     }
