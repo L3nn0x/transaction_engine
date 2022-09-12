@@ -12,6 +12,11 @@ pub struct TransactionEngine {
     accounts: HashMap<ClientID, Account>
 }
 
+pub struct ClientAccount<'a> {
+    pub client_id: ClientID,
+    pub account: &'a Account
+}
+
 impl TransactionEngine {
     pub fn new() -> Self {
         Self {
@@ -27,15 +32,15 @@ impl TransactionEngine {
         }
     }
 
-    pub fn get_accounts(&self) -> impl Iterator<Item=&Account> {
-        self.accounts.iter().map(|(_, v)| v)
+    pub fn get_accounts(&self) -> impl Iterator<Item=ClientAccount> {
+        self.accounts.iter().map(|(k, v)| ClientAccount{client_id: *k, account: v})
     }
 
     fn process_deposit(&mut self, cx: ClientID, amount: Amount) {
         if let Some(account) = self.accounts.get_mut(&cx) {
             account.deposit(amount);
         } else {
-            self.accounts.insert(cx, Account::new(cx, amount));
+            self.accounts.insert(cx, Account::new(amount));
         }
     }
 
@@ -48,16 +53,16 @@ impl TransactionEngine {
 
 #[cfg(test)]
 mod tests {
-    use crate::transaction_engine::{Account, Transaction, TransactionEngine};
+    use crate::transaction_engine::{ClientAccount, Transaction, TransactionEngine};
 
     #[test]
     fn test_deposit_no_account() {
         let mut te = TransactionEngine::new();
         te.process_transaction(Transaction::Deposit(1, 1, 42));
-        let accounts: Vec<&Account> = te.get_accounts().collect();
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].client_id(), 1);
-        assert_eq!(accounts[0].available(), 42);
+        assert_eq!(accounts[0].client_id, 1);
+        assert_eq!(accounts[0].account.available(), 42);
     }
 
     #[test]
@@ -65,17 +70,17 @@ mod tests {
         let mut te = TransactionEngine::new();
         te.process_transaction(Transaction::Deposit(1, 1, 42));
         te.process_transaction(Transaction::Deposit(2, 1, 42));
-        let accounts: Vec<&Account> = te.get_accounts().collect();
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].client_id(), 1);
-        assert_eq!(accounts[0].available(), 84);
+        assert_eq!(accounts[0].client_id, 1);
+        assert_eq!(accounts[0].account.available(), 84);
     }
 
     #[test]
     fn test_withdrawal_no_account() {
         let mut te = TransactionEngine::new();
         te.process_transaction(Transaction::Withdrawal(1, 1, 42));
-        let accounts: Vec<&Account> = te.get_accounts().collect();
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 0);
     }
 
@@ -84,8 +89,8 @@ mod tests {
         let mut te = TransactionEngine::new();
         te.process_transaction(Transaction::Deposit(1, 1, 42));
         te.process_transaction(Transaction::Withdrawal(2, 1, 30));
-        let accounts: Vec<&Account> = te.get_accounts().collect();
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].total(), 12);
+        assert_eq!(accounts[0].account.total(), 12);
     }
 }
