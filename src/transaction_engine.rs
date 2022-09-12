@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::common_types::*;
 use crate::account::Account;
-use log::warn;
+use log::{warn, info};
 
 struct InnerTransaction {
     client_id: ClientID,
@@ -28,6 +28,7 @@ impl TransactionEngine {
     }
 
     pub fn process_transaction(&mut self, transaction: Transaction) {
+        info!("Processing {:?}", transaction);
         use Transaction::*;
         let tx_to_save = match transaction {
             Deposit(tx, cx, amount) => {

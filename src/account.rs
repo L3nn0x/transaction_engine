@@ -31,7 +31,7 @@ impl Account {
             self.amount -= amount;
             true
         } else {
-            warn!("Attempt to trigger a withdrawal account action on a locked account");
+            warn!("Attempt to trigger a withdrawal account action not enough funds or locked account");
             false
         }
     }
