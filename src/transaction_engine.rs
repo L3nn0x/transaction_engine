@@ -96,21 +96,29 @@ impl TransactionEngine {
         }
     }
 
-    fn process_resolve(&mut self, tx: TransactionID, cx: ClientID) {
+    fn process_resolve_or_chargeback<Func: FnOnce(&mut Account, Amount)>(&mut self, tx: TransactionID, cx: ClientID, func: Func) {
         if let Some(transaction) = self.transactions.get(&tx) {
             if transaction.client_id != cx || !transaction.is_disputed {
                 // wrong client ID or that transaction is not disputed
                 return;
             }
             if let Some(account) = self.accounts.get_mut(&cx) {
-                account.resolve(transaction.amount);
+                func(account, transaction.amount);
             }
             self.transactions.remove(&tx);
         }
     }
 
+    fn process_resolve(&mut self, tx: TransactionID, cx: ClientID) {
+        self.process_resolve_or_chargeback(tx, cx, |account, amount| {
+            account.resolve(amount);
+        });
+    }
+
     fn process_chargeback(&mut self, tx: TransactionID, cx: ClientID) {
-        todo!()
+        self.process_resolve_or_chargeback(tx, cx, |account, amount| {
+            account.chargeback(amount);
+        });
     }
 }
 
@@ -272,6 +280,82 @@ mod tests {
         te.process_transaction(Transaction::Deposit(1, 1, 12));
         te.process_transaction(Transaction::Deposit(2, 1, 30));
         te.process_transaction(Transaction::Resolve(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_resolve_twice() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Dispute(1, 1));
+        te.process_transaction(Transaction::Resolve(1, 1));
+        te.process_transaction(Transaction::Resolve(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_chargeback_normal() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 42));
+        te.process_transaction(Transaction::Dispute(1, 1));
+        te.process_transaction(Transaction::Chargeback(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 0);
+        assert_eq!(accounts[0].account.is_locked(), true);
+    }
+
+    #[test]
+    fn test_chargeback_partial() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Dispute(1, 1));
+        te.process_transaction(Transaction::Chargeback(1, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 30);
+    }
+
+    #[test]
+    fn test_chargeback_wrong_tx() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Chargeback(3, 1));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_chargeback_wrong_cx() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Chargeback(1, 2));
+        let accounts: Vec<ClientAccount> = te.get_accounts().collect();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.held(), 0);
+        assert_eq!(accounts[0].account.available(), 42);
+    }
+
+    #[test]
+    fn test_chargeback_tx_not_under_dispute() {
+        let mut te = TransactionEngine::new();
+        te.process_transaction(Transaction::Deposit(1, 1, 12));
+        te.process_transaction(Transaction::Deposit(2, 1, 30));
+        te.process_transaction(Transaction::Chargeback(1, 1));
         let accounts: Vec<ClientAccount> = te.get_accounts().collect();
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].account.held(), 0);
