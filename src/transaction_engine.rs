@@ -1,15 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::common_types::*;
 use crate::account::Account;
 
-#[derive(Debug)]
-pub enum Transaction {
-    Deposit(TransactionID, ClientID, Amount),
-    Withdrawal(TransactionID, ClientID, Amount),
-}
 
 pub struct TransactionEngine {
-    accounts: HashMap<ClientID, Account>
+    accounts: HashMap<ClientID, Account>,
+    transactions: HashSet<Transaction>
 }
 
 pub struct ClientAccount<'a> {
@@ -20,7 +16,8 @@ pub struct ClientAccount<'a> {
 impl TransactionEngine {
     pub fn new() -> Self {
         Self {
-            accounts: HashMap::new()
+            accounts: HashMap::new(),
+            transactions: HashSet::new()
         }
     }
 
@@ -28,7 +25,10 @@ impl TransactionEngine {
         use Transaction::*;
         match transaction {
             Deposit(_, cx, amount) => self.process_deposit(cx, amount),
-            Withdrawal(_, cx, amount) => self.process_withdrawal(cx, amount)
+            Withdrawal(_, cx, amount) => self.process_withdrawal(cx, amount),
+            Dispute(tx, cx) => self.process_dispute(tx, cx),
+            Resolve(tx, cx) => self.process_resolve(tx, cx),
+            Chargeback(tx, cx) => self.process_chargeback(tx, cx)
         }
     }
 
@@ -48,6 +48,18 @@ impl TransactionEngine {
         if let Some(account) = self.accounts.get_mut(&cx) {
             account.withdraw(amount);
         }
+    }
+
+    fn process_dispute(&mut self, tx: TransactionID, cx: ClientID) {
+        todo!()
+    }
+
+    fn process_resolve(&mut self, tx: TransactionID, cx: ClientID) {
+        todo!()
+    }
+
+    fn process_chargeback(&mut self, tx: TransactionID, cx: ClientID) {
+        todo!()
     }
 }
 
