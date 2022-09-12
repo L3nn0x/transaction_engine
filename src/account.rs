@@ -41,6 +41,14 @@ impl Account {
         }
     }
 
+    pub fn chargeback(&mut self, amount: Amount) {
+        if amount <= self.held() {
+            self.is_locked = true;
+            self.amount_held -= amount;
+            self.amount -= amount;
+        }
+    }
+
     pub fn client_id(&self) -> ClientID {
         self.client_id
     }
@@ -191,5 +199,24 @@ mod tests {
         account.dispute(6);
         account.resolve(10);
         assert_eq!(account.held(), 6);
+    }
+
+    #[test]
+    fn chargeback_normal() {
+        let mut account = Account::new(1, 42);
+        account.dispute(12);
+        account.chargeback(12);
+        assert_eq!(account.is_locked(), true);
+        assert_eq!(account.available(), 30);
+        assert_eq!(account.total(), 30);
+    }
+
+    #[test]
+    fn chargeback_insufficient_held_funds() {
+        let mut account = Account::new(1, 42);
+        account.chargeback(12);
+        assert_eq!(account.is_locked(), false);
+        assert_eq!(account.available(), 42);
+        assert_eq!(account.total(), 42);
     }
 }
