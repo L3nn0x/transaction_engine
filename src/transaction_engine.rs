@@ -97,7 +97,16 @@ impl TransactionEngine {
     }
 
     fn process_resolve(&mut self, tx: TransactionID, cx: ClientID) {
-        todo!()
+        if let Some(transaction) = self.transactions.get(&tx) {
+            if transaction.client_id != cx || !transaction.is_disputed {
+                // wrong client ID or that transaction is not disputed
+                return;
+            }
+            if let Some(account) = self.accounts.get_mut(&cx) {
+                account.resolve(transaction.amount);
+            }
+            self.transactions.remove(&tx);
+        }
     }
 
     fn process_chargeback(&mut self, tx: TransactionID, cx: ClientID) {
