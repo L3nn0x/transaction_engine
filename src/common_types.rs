@@ -10,18 +10,44 @@ pub enum Transaction {
     Withdrawal(TransactionID, ClientID, Amount),
     Dispute(TransactionID, ClientID),
     Resolve(TransactionID, ClientID),
-    Chargeback(TransactionID, ClientID)
+    Chargeback(TransactionID, ClientID),
+    Any(TransactionID)
 }
 
 impl Transaction {
-    fn get_transaction_id(&self) -> TransactionID {
+    pub fn get_amount(&self) -> Option<Amount> {
+        use Transaction::*;
+        match *self {
+            Deposit(_, _, amount) => Some(amount),
+            Withdrawal(_, _, amount) => Some(amount),
+            Dispute(_, _) => None,
+            Resolve(_, _) => None,
+            Chargeback(_, _) => None,
+            Any(_) => None
+        }
+    }
+
+    pub fn get_transaction_id(&self) -> TransactionID {
         use Transaction::*;
         match *self {
             Deposit(tx, _, _) => tx,
             Withdrawal(tx, _, _) => tx,
             Dispute(tx, _) => tx,
             Resolve(tx, _) => tx,
-            Chargeback(tx, _) => tx
+            Chargeback(tx, _) => tx,
+            Any(tx) => tx
+        }
+    }
+
+    pub fn get_client_id(&self) -> ClientID {
+        use Transaction::*;
+        match *self {
+            Deposit(_, cx, _) => cx,
+            Withdrawal(_, cx, _) => cx,
+            Dispute(_, cx) => cx,
+            Resolve(_, cx) => cx,
+            Chargeback(_, cx) => cx,
+            Any(_) => unreachable!()
         }
     }
 }
