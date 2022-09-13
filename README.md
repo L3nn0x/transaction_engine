@@ -5,3 +5,6 @@ The program can be run with the following arguments: `cargo run -- file` and wil
 The program will output logs on stderr. It is possible to increase the verbosity with the -v (-vv) command line argument.
 
 It uses clap, serde, csv, log and stderrlog as dependencies.
+
+# Assumptions
+We assume that all the input amounts are positive. If a transaction amount is negative, we automatically convert it to zero.

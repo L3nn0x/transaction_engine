@@ -29,7 +29,11 @@ pub fn parse_csv<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Transaction>,
         }
         let row = row.unwrap();
         let amount = if let Some(amount) = row.amount {
-            Some((amount * 10000.0) as Amount) // fixed floating point with 4 decimals
+            if amount < 0.0 {
+                Some(0)
+            } else {
+                Some((amount * 10000.0) as Amount) // fixed floating point with 4 decimals
+            }
         } else {
             None
         };
